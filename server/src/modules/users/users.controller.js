@@ -8,6 +8,14 @@ export async function listHandler(req, res, next) {
   }
 }
 
+export async function directoryHandler(req, res, next) {
+  try {
+    res.json({ success: true, data: await usersService.directory() });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function createHandler(req, res, next) {
   try {
     const result = await usersService.create(req.body, req.user.id);

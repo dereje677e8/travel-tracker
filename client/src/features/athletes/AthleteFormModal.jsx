@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import Modal from '../../components/ui/Modal.jsx';
 import { athleteApi } from '../../api/athleteApi.js';
+import { usersApi } from '../../api/usersApi.js';
 
 const EMPTY = {
   fullName: '', gender: 'female', dateOfBirth: '', passportNumber: '', sport: '',
   teamFederation: '', destinationCountry: '', destinationCity: '', competitionName: '',
   purposeOfTravel: 'Competition', visaType: '', embassy: '', departureDate: '', returnDate: '',
-  priority: 'medium', notes: '',
+  assignedOfficerId: '', priority: 'medium', notes: '',
 };
 
 const FIELDS = [
@@ -24,6 +25,7 @@ const FIELDS = [
   ['embassy', 'Embassy', 'text', false],
   ['departureDate', 'Departure Date', 'date', true],
   ['returnDate', 'Return Date', 'date', true],
+  ['assignedOfficerId', 'Assigned Officer', 'select-officer', false],
   ['priority', 'Priority', 'select-priority', true],
 ];
 
@@ -32,6 +34,14 @@ export default function AthleteFormModal({ open, onClose, onSaved, athlete }) {
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState(null);
+  const [officers, setOfficers] = useState([]);
+
+  useEffect(() => {
+    if (!open) return;
+    // Directory is available to any authenticated user (staff included) -
+    // it's a separate, minimal endpoint from the admin-only /users list.
+    usersApi.directory().then(setOfficers).catch(() => setOfficers([]));
+  }, [open]);
 
   useEffect(() => {
     if (athlete) {
@@ -42,6 +52,7 @@ export default function AthleteFormModal({ open, onClose, onSaved, athlete }) {
         competitionName: athlete.competition_name, purposeOfTravel: athlete.purpose_of_travel || '',
         visaType: athlete.visa_type || '', embassy: athlete.embassy || '',
         departureDate: athlete.departure_date, returnDate: athlete.return_date,
+        assignedOfficerId: athlete.assigned_officer_id || '',
         priority: athlete.priority, notes: athlete.notes || '',
       });
     } else {
@@ -61,10 +72,16 @@ export default function AthleteFormModal({ open, onClose, onSaved, athlete }) {
     setServerError(null);
     setErrors({});
     try {
+      // assignedOfficerId comes off a <select> as a string ('' when unset) -
+      // the API expects a positive integer or null, not an empty string.
+      const payload = {
+        ...form,
+        assignedOfficerId: form.assignedOfficerId ? Number(form.assignedOfficerId) : null,
+      };
       if (athlete) {
-        await athleteApi.update(athlete.id, form);
+        await athleteApi.update(athlete.id, payload);
       } else {
-        await athleteApi.create(form);
+        await athleteApi.create(payload);
       }
       onSaved();
       onClose();
@@ -98,6 +115,13 @@ export default function AthleteFormModal({ open, onClose, onSaved, athlete }) {
                   <option value="high">High</option>
                   <option value="medium">Medium</option>
                   <option value="low">Low</option>
+                </select>
+              ) : type === 'select-officer' ? (
+                <select value={form[key]} onChange={(e) => update(key, e.target.value)} className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2 text-sm">
+                  <option value="">Unassigned</option>
+                  {officers.map((o) => (
+                    <option key={o.id} value={o.id}>{o.full_name} ({o.role === 'administrator' ? 'Admin' : 'Staff'})</option>
+                  ))}
                 </select>
               ) : (
                 <input

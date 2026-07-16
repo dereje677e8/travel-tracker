@@ -27,25 +27,43 @@ export async function runAppointmentReminderSweep() {
         AND tr.appointment_date = DATE_ADD(CURDATE(), INTERVAL 1 DAY)
     `);
 
+    // Fetched lazily (only if some row actually needs it) and cached for the
+    // rest of the sweep, rather than re-querying per unassigned athlete.
+    let adminEmails = null;
+    async function getAdminEmails() {
+      if (adminEmails === null) {
+        const [adminRows] = await pool.query(
+          "SELECT email FROM users WHERE role = 'administrator' AND is_active = 1"
+        );
+        adminEmails = adminRows.map((r) => r.email);
+      }
+      return adminEmails;
+    }
+
     for (const row of rows) {
-      if (!row.officer_email) {
-        logger.warn('Skipping appointment reminder - athlete has no assigned officer with an email', { athleteId: row.athlete_id });
+      const recipients = row.officer_email ? [row.officer_email] : await getAdminEmails();
+      if (recipients.length === 0) {
+        logger.warn('Skipping appointment reminder - no assigned officer and no active administrators found', { athleteId: row.athlete_id });
         continue;
       }
-      try {
-        // actorId is null (no human triggered this) - shows as "System" in
-        // the activity log, same convention used elsewhere for automated actions.
-        await notificationsService.send({
-          athleteId: row.athlete_id,
-          channel: 'email',
-          recipient: row.officer_email,
-          customMessage:
-            `Reminder: ${row.full_name}'s visa appointment is scheduled for tomorrow ` +
-            `(${row.appointment_date}) ahead of travel to ${row.destination_country} for ${row.competition_name}.`,
-        }, null);
-        logger.info('Sent appointment reminder', { athleteId: row.athlete_id, to: row.officer_email });
-      } catch (err) {
-        logger.error('Failed to send appointment reminder', { athleteId: row.athlete_id, error: err.message });
+      const noOfficerNote = row.officer_email ? '' : ' (no officer assigned - routed to administrators)';
+
+      for (const recipient of recipients) {
+        try {
+          // actorId is null (no human triggered this) - shows as "System" in
+          // the activity log, same convention used elsewhere for automated actions.
+          await notificationsService.send({
+            athleteId: row.athlete_id,
+            channel: 'email',
+            recipient,
+            customMessage:
+              `Reminder: ${row.full_name}'s visa appointment is scheduled for tomorrow ` +
+              `(${row.appointment_date}) ahead of travel to ${row.destination_country} for ${row.competition_name}.${noOfficerNote}`,
+          }, null);
+          logger.info('Sent appointment reminder', { athleteId: row.athlete_id, to: recipient });
+        } catch (err) {
+          logger.error('Failed to send appointment reminder', { athleteId: row.athlete_id, to: recipient, error: err.message });
+        }
       }
     }
 

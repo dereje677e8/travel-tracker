@@ -10,6 +10,13 @@ export async function list() {
   return rows;
 }
 
+export async function directory() {
+  const [rows] = await pool.query(
+    "SELECT id, full_name, role FROM users WHERE is_active = 1 ORDER BY full_name ASC"
+  );
+  return rows;
+}
+
 export async function create({ fullName, email, password, role }, actorId) {
   const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
   if (existing.length) throw AppError.conflict('A user with that email already exists');
