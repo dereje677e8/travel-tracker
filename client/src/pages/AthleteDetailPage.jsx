@@ -1,17 +1,38 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Pencil, Trash2, Send, Plane, Building2, CreditCard, Copy } from 'lucide-react';
+import {
+  ArrowLeft, Pencil, Trash2, Send, Copy, PlaneTakeoff, PlaneLanding,
+  Building2, CreditCard, UserRound, StickyNote,
+} from 'lucide-react';
 import { athleteApi } from '../api/athleteApi.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocketEvent } from '../hooks/useSocketEvent.js';
 import StatusBadge from '../components/ui/StatusBadge.jsx';
 import PriorityBadge from '../components/ui/PriorityBadge.jsx';
-import ProgressBar from '../components/ui/ProgressBar.jsx';
+import ProgressRing from '../components/ui/ProgressRing.jsx';
 import CountdownChip from '../components/ui/CountdownChip.jsx';
 import RequirementChecklist from '../features/athletes/RequirementChecklist.jsx';
 import AthleteFormModal from '../features/athletes/AthleteFormModal.jsx';
 import NotifyModal from '../features/athletes/NotifyModal.jsx';
 import { formatDate, isPassportExpiringSoon } from '../lib/formatters.js';
+
+function initials(name) {
+  return name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+}
+
+// Small "info card" used in the grid below the hero - icon + label + value,
+// consistent shape whether the content is one line or two.
+function InfoCard({ icon: Icon, label, children, warn }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-surface dark:bg-surface-dark p-4">
+      <div className="mb-2 flex items-center gap-2 text-slate-400">
+        <Icon size={15} />
+        <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
+      </div>
+      <div className={warn ? 'text-status-action' : 'text-ink dark:text-ink-dark'}>{children}</div>
+    </div>
+  );
+}
 
 export default function AthleteDetailPage() {
   const { id } = useParams();
@@ -54,6 +75,7 @@ export default function AthleteDetailPage() {
   if (!detail) return null;
 
   const { athlete, requirements, activity, daysUntilDeparture } = detail;
+  const passportWarn = isPassportExpiringSoon(athlete.passport_expiration_date);
 
   return (
     <div className="space-y-6">
@@ -79,67 +101,82 @@ export default function AthleteDetailPage() {
         </div>
       </div>
 
-      {/* Header card */}
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-surface dark:bg-surface-dark p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{athlete.athlete_code}</p>
-            <h1 className="text-2xl font-bold text-ink dark:text-ink-dark">{athlete.full_name}</h1>
-            <p className="mt-1 text-sm text-slate-500">{athlete.sport} \u2022 {athlete.team_federation || 'Unaffiliated'}</p>
+      {/* Hero card - identity + readiness ring up top, ticket-stub style trip strip below */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-surface dark:bg-surface-dark">
+        <div className="flex flex-wrap items-center justify-between gap-6 p-6">
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary-600 text-lg font-bold text-white">
+              {initials(athlete.full_name)}
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{athlete.athlete_code}</p>
+              <h1 className="text-2xl font-bold text-ink dark:text-ink-dark">{athlete.full_name}</h1>
+              <p className="mt-0.5 text-sm text-slate-500">{athlete.sport} \u2022 {athlete.team_federation || 'Unaffiliated'}</p>
+              <div className="mt-2 flex items-center gap-2">
+                <PriorityBadge priority={athlete.priority} />
+                <StatusBadge status={athlete.status} />
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <PriorityBadge priority={athlete.priority} />
-            <StatusBadge status={athlete.status} />
+          <ProgressRing percent={athlete.progress_percent} />
+        </div>
+
+        {/* Ticket-stub trip strip */}
+        <div className="relative border-t border-dashed border-slate-300 dark:border-slate-600 bg-slate-50/60 dark:bg-slate-800/30 px-6 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <PlaneTakeoff size={18} className="text-primary-600" />
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-slate-400">Departs</p>
+                <p className="text-sm font-semibold text-ink dark:text-ink-dark">{formatDate(athlete.departure_date)}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-1 items-center justify-center gap-2 min-w-[140px]">
+              <div className="h-px flex-1 border-t-2 border-dotted border-slate-300 dark:border-slate-600" />
+              <span className="rounded-full bg-primary-50 dark:bg-primary-900/40 px-3 py-1 text-xs font-semibold text-primary-700 dark:text-primary-300 whitespace-nowrap">
+                {athlete.destination_city ? `${athlete.destination_city}, ` : ''}{athlete.destination_country}
+              </span>
+              <div className="h-px flex-1 border-t-2 border-dotted border-slate-300 dark:border-slate-600" />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-[10px] uppercase tracking-wide text-slate-400">Returns</p>
+                <p className="text-sm font-semibold text-ink dark:text-ink-dark">{formatDate(athlete.return_date)}</p>
+              </div>
+              <PlaneLanding size={18} className="text-primary-600" />
+            </div>
+
             <CountdownChip days={daysUntilDeparture} />
           </div>
         </div>
+      </div>
 
-        <div className="mt-5">
-          <div className="mb-1 flex items-center justify-between text-sm">
-            <span className="font-medium text-slate-600 dark:text-slate-300">Travel Readiness</span>
-            <span className="tabular-nums font-semibold text-ink dark:text-ink-dark">{athlete.progress_percent}%</span>
-          </div>
-          <ProgressBar percent={athlete.progress_percent} />
-        </div>
+      {/* Info card grid */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <InfoCard icon={Building2} label="Competition">
+          <p className="text-sm font-medium">{athlete.competition_name}</p>
+          <p className="mt-0.5 text-xs text-slate-500">{athlete.visa_type || 'Visa type TBD'} \u2022 {athlete.embassy || 'Embassy TBD'}</p>
+        </InfoCard>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="flex items-start gap-3">
-            <Plane size={18} className="mt-0.5 text-primary-600" />
-            <div>
-              <p className="text-xs text-slate-400">Destination</p>
-              <p className="text-sm font-medium text-ink dark:text-ink-dark">{athlete.destination_city ? `${athlete.destination_city}, ` : ''}{athlete.destination_country}</p>
-              <p className="text-xs text-slate-500">{formatDate(athlete.departure_date)} \u2192 {formatDate(athlete.return_date)}</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-3">
-            <Building2 size={18} className="mt-0.5 text-primary-600" />
-            <div>
-              <p className="text-xs text-slate-400">Competition</p>
-              <p className="text-sm font-medium text-ink dark:text-ink-dark">{athlete.competition_name}</p>
-              <p className="text-xs text-slate-500">{athlete.visa_type || 'Visa type TBD'} \u2022 {athlete.embassy || 'Embassy TBD'}</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-3">
-            <CreditCard size={18} className="mt-0.5 text-primary-600" />
-            <div>
-              <p className="text-xs text-slate-400">Passport</p>
-              <p className="text-sm font-medium text-ink dark:text-ink-dark">{athlete.passport_number}</p>
-              <p className={`text-xs ${isPassportExpiringSoon(athlete.passport_expiration_date) ? 'font-semibold text-status-action' : 'text-slate-500'}`}>
-                {athlete.passport_expiration_date
-                  ? `Expires ${formatDate(athlete.passport_expiration_date)}${isPassportExpiringSoon(athlete.passport_expiration_date) ? ' \u2014 renew soon' : ''}`
-                  : 'Expiration date not on file'}
-              </p>
-            </div>
-          </div>
-        </div>
+        <InfoCard icon={CreditCard} label="Passport" warn={passportWarn}>
+          <p className="text-sm font-medium">{athlete.passport_number}</p>
+          <p className={`mt-0.5 text-xs ${passportWarn ? 'font-semibold' : 'text-slate-500'}`}>
+            {athlete.passport_expiration_date
+              ? `Expires ${formatDate(athlete.passport_expiration_date)}${passportWarn ? ' \u2014 renew soon' : ''}`
+              : 'Expiration date not on file'}
+          </p>
+        </InfoCard>
 
-        <p className="mt-2 text-xs text-slate-400">Assigned Officer: {athlete.assigned_officer_name || 'Unassigned'}</p>
+        <InfoCard icon={UserRound} label="Assigned Officer">
+          <p className="text-sm font-medium">{athlete.assigned_officer_name || 'Unassigned'}</p>
+          <p className="mt-0.5 text-xs text-slate-500">{athlete.purpose_of_travel || 'Purpose not specified'}</p>
+        </InfoCard>
 
-        {athlete.notes && (
-          <div className="mt-5 rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 text-sm text-slate-600 dark:text-slate-300">
-            {athlete.notes}
-          </div>
-        )}
+        <InfoCard icon={StickyNote} label="Notes">
+          <p className="text-sm text-slate-600 dark:text-slate-300 line-clamp-2">{athlete.notes || 'No notes on file.'}</p>
+        </InfoCard>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
