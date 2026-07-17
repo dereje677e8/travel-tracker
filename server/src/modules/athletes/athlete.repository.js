@@ -21,14 +21,20 @@ export async function generateAthleteCode(conn) {
 export async function insertAthlete(conn, code, data, createdBy) {
   const [result] = await conn.query(
     `INSERT INTO athletes
-      (athlete_code, full_name, gender, date_of_birth, passport_number, passport_expiration_date, sport, team_federation,
+      (athlete_code, full_name, gender, date_of_birth,
+       place_of_birth_country, place_of_birth_province, place_of_birth_city,
+       current_address, marital_status, national_id,
+       passport_number, passport_expiration_date, passport_issue_date, passport_issue_place,
+       sport, team_federation,
        destination_country, destination_city, competition_name, purpose_of_travel, visa_type,
        embassy, departure_date, return_date, assigned_officer_id, priority, notes, created_by)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
-      code, data.fullName, data.gender, data.dateOfBirth, data.passportNumber,
-      data.passportExpirationDate || null, data.sport,
-      data.teamFederation || null, data.destinationCountry, data.destinationCity || null,
+      code, data.fullName, data.gender, data.dateOfBirth,
+      data.placeOfBirthCountry || null, data.placeOfBirthProvince || null, data.placeOfBirthCity || null,
+      data.currentAddress || null, data.maritalStatus || null, data.nationalId || null,
+      data.passportNumber, data.passportExpirationDate || null, data.passportIssueDate || null, data.passportIssuePlace || null,
+      data.sport, data.teamFederation || null, data.destinationCountry, data.destinationCity || null,
       data.competitionName, data.purposeOfTravel || null, data.visaType || null, data.embassy || null,
       data.departureDate, data.returnDate, data.assignedOfficerId || null, data.priority,
       data.notes || null, createdBy,
@@ -48,7 +54,11 @@ export async function insertBlankRequirements(conn, athleteId) {
 export async function updateAthleteFields(conn, id, patch) {
   const columnMap = {
     fullName: 'full_name', gender: 'gender', dateOfBirth: 'date_of_birth',
+    placeOfBirthCountry: 'place_of_birth_country', placeOfBirthProvince: 'place_of_birth_province',
+    placeOfBirthCity: 'place_of_birth_city', currentAddress: 'current_address',
+    maritalStatus: 'marital_status', nationalId: 'national_id',
     passportNumber: 'passport_number', passportExpirationDate: 'passport_expiration_date',
+    passportIssueDate: 'passport_issue_date', passportIssuePlace: 'passport_issue_place',
     sport: 'sport', teamFederation: 'team_federation',
     destinationCountry: 'destination_country', destinationCity: 'destination_city',
     competitionName: 'competition_name', purposeOfTravel: 'purpose_of_travel', visaType: 'visa_type',
@@ -63,6 +73,11 @@ export async function updateAthleteFields(conn, id, patch) {
   if (!fields.length) return;
   values.push(id);
   await conn.query(`UPDATE athletes SET ${fields.join(', ')} WHERE id = ?`, values);
+}
+
+export async function updatePhotoPath(id, photoPath) {
+  const { pool } = await import('../../db/pool.js');
+  await pool.query('UPDATE athletes SET photo_path = ? WHERE id = ?', [photoPath, id]);
 }
 
 export async function updateProgress(conn, id, percent, status) {
@@ -166,7 +181,7 @@ export async function list({ page, limit, search, status, destinationCountry, mi
   const offset = (page - 1) * limit;
 
   const [rows] = await pool.query(
-    `SELECT a.id, a.athlete_code, a.full_name, a.sport, a.destination_country, a.destination_city,
+    `SELECT a.id, a.athlete_code, a.full_name, a.photo_path, a.sport, a.destination_country, a.destination_city,
             a.competition_name, a.departure_date, a.return_date, a.priority, a.progress_percent,
             a.status, a.passport_expiration_date, u.full_name AS assigned_officer_name
      FROM athletes a

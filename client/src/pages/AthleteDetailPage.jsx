@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Pencil, Trash2, Send, Copy, PlaneTakeoff, PlaneLanding,
-  Building2, CreditCard, UserRound, StickyNote,
+  Building2, CreditCard, UserRound, StickyNote, MapPin, Home, Users as UsersIcon, Fingerprint,
 } from 'lucide-react';
 import { athleteApi } from '../api/athleteApi.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocketEvent } from '../hooks/useSocketEvent.js';
+import { useAuthedImage } from '../hooks/useAuthedImage.js';
 import StatusBadge from '../components/ui/StatusBadge.jsx';
 import PriorityBadge from '../components/ui/PriorityBadge.jsx';
 import ProgressRing from '../components/ui/ProgressRing.jsx';
@@ -19,6 +20,8 @@ import { formatDate, isPassportExpiringSoon } from '../lib/formatters.js';
 function initials(name) {
   return name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 }
+
+const MARITAL_LABELS = { single: 'Single', married: 'Married', divorced: 'Divorced', widowed: 'Widowed', other: 'Other' };
 
 // Small "info card" used in the grid below the hero - icon + label + value,
 // consistent shape whether the content is one line or two.
@@ -64,6 +67,9 @@ export default function AthleteDetailPage() {
     if (String(payload.id) === String(id)) load();
   });
 
+  const athlete = detail?.athlete;
+  const photoUrl = useAuthedImage(athlete?.photo_path ? athleteApi.photoPath(athlete.id) : null);
+
   async function handleDelete() {
     if (!window.confirm('Remove this athlete record? This cannot be undone.')) return;
     await athleteApi.remove(id);
@@ -74,8 +80,10 @@ export default function AthleteDetailPage() {
   if (error) return <div className="text-status-action">{error}</div>;
   if (!detail) return null;
 
-  const { athlete, requirements, activity, daysUntilDeparture } = detail;
+  const { requirements, activity, daysUntilDeparture } = detail;
   const passportWarn = isPassportExpiringSoon(athlete.passport_expiration_date);
+  const placeOfBirth = [athlete.place_of_birth_city, athlete.place_of_birth_province, athlete.place_of_birth_country]
+    .filter(Boolean).join(', ');
 
   return (
     <div className="space-y-6">
@@ -101,13 +109,17 @@ export default function AthleteDetailPage() {
         </div>
       </div>
 
-      {/* Hero card - identity + readiness ring up top, ticket-stub style trip strip below */}
+      {/* Hero card - photo + identity + readiness ring up top, ticket-stub style trip strip below */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-surface dark:bg-surface-dark">
         <div className="flex flex-wrap items-center justify-between gap-6 p-6">
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary-600 text-lg font-bold text-white">
-              {initials(athlete.full_name)}
-            </div>
+            {photoUrl ? (
+              <img src={photoUrl} alt={athlete.full_name} className="h-20 w-16 shrink-0 rounded-xl object-cover border border-slate-200 dark:border-slate-700" />
+            ) : (
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary-600 text-lg font-bold text-white">
+                {initials(athlete.full_name)}
+              </div>
+            )}
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{athlete.athlete_code}</p>
               <h1 className="text-2xl font-bold text-ink dark:text-ink-dark">{athlete.full_name}</h1>
@@ -153,7 +165,7 @@ export default function AthleteDetailPage() {
         </div>
       </div>
 
-      {/* Info card grid */}
+      {/* Info card grid - travel logistics */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <InfoCard icon={Building2} label="Competition">
           <p className="text-sm font-medium">{athlete.competition_name}</p>
@@ -167,6 +179,9 @@ export default function AthleteDetailPage() {
               ? `Expires ${formatDate(athlete.passport_expiration_date)}${passportWarn ? ' \u2014 renew soon' : ''}`
               : 'Expiration date not on file'}
           </p>
+          {athlete.passport_issue_date && (
+            <p className="mt-0.5 text-xs text-slate-500">Issued {formatDate(athlete.passport_issue_date)}{athlete.passport_issue_place ? ` \u2014 ${athlete.passport_issue_place}` : ''}</p>
+          )}
         </InfoCard>
 
         <InfoCard icon={UserRound} label="Assigned Officer">
@@ -177,6 +192,41 @@ export default function AthleteDetailPage() {
         <InfoCard icon={StickyNote} label="Notes">
           <p className="text-sm text-slate-600 dark:text-slate-300 line-clamp-2">{athlete.notes || 'No notes on file.'}</p>
         </InfoCard>
+      </div>
+
+      {/* Registration / biodata card */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-surface dark:bg-surface-dark p-5">
+        <h2 className="mb-4 text-sm font-semibold text-ink dark:text-ink-dark">Registration Details</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="flex items-start gap-2.5">
+            <MapPin size={16} className="mt-0.5 shrink-0 text-slate-400" />
+            <div>
+              <p className="text-xs text-slate-400">Place of Birth</p>
+              <p className="text-sm text-ink dark:text-ink-dark">{placeOfBirth || '\u2014'}</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2.5">
+            <Home size={16} className="mt-0.5 shrink-0 text-slate-400" />
+            <div>
+              <p className="text-xs text-slate-400">Current Address</p>
+              <p className="text-sm text-ink dark:text-ink-dark">{athlete.current_address || '\u2014'}</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2.5">
+            <UsersIcon size={16} className="mt-0.5 shrink-0 text-slate-400" />
+            <div>
+              <p className="text-xs text-slate-400">Marital Status</p>
+              <p className="text-sm text-ink dark:text-ink-dark">{MARITAL_LABELS[athlete.marital_status] || '\u2014'}</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2.5">
+            <Fingerprint size={16} className="mt-0.5 shrink-0 text-slate-400" />
+            <div>
+              <p className="text-xs text-slate-400">National ID</p>
+              <p className="text-sm text-ink dark:text-ink-dark">{athlete.national_id || '\u2014'}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

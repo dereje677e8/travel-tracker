@@ -7,6 +7,7 @@ import { useSocketEvent } from '../hooks/useSocketEvent.js';
 import StatusBadge from '../components/ui/StatusBadge.jsx';
 import PriorityBadge from '../components/ui/PriorityBadge.jsx';
 import ProgressBar from '../components/ui/ProgressBar.jsx';
+import AthleteAvatar from '../components/ui/AthleteAvatar.jsx';
 import AthleteFormModal from '../features/athletes/AthleteFormModal.jsx';
 import { formatDate, isPassportExpiringSoon } from '../lib/formatters.js';
 
@@ -157,15 +158,20 @@ export default function AthletesListPage() {
                 className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50"
               >
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-1.5">
-                    <p className="font-medium text-ink dark:text-ink-dark">{a.full_name}</p>
-                    {isPassportExpiringSoon(a.passport_expiration_date) && (
-                      <span title={`Passport expires ${formatDate(a.passport_expiration_date)}`}>
-                        <AlertTriangle size={13} className="text-status-action" />
-                      </span>
-                    )}
+                  <div className="flex items-center gap-3">
+                    <AthleteAvatar athleteId={a.id} hasPhoto={!!a.photo_path} fullName={a.full_name} size={32} />
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-medium text-ink dark:text-ink-dark">{a.full_name}</p>
+                        {isPassportExpiringSoon(a.passport_expiration_date) && (
+                          <span title={`Passport expires ${formatDate(a.passport_expiration_date)}`}>
+                            <AlertTriangle size={13} className="text-status-action" />
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400">{a.athlete_code}</p>
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-400">{a.athlete_code}</p>
                 </td>
                 <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{a.sport}</td>
                 <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{a.destination_country}</td>

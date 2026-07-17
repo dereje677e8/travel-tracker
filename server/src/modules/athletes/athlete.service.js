@@ -1,8 +1,14 @@
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { pool, withTransaction } from '../../db/pool.js';
 import { AppError } from '../../utils/AppError.js';
 import { calculateProgress, deriveStatus } from '../../utils/progress.js';
 import * as repo from './athlete.repository.js';
 import * as activityLogService from '../activityLog/activityLog.service.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const UPLOADS_DIR = path.join(__dirname, '../../../uploads/athlete-photos');
 
 export async function listAthletes(query) {
   return repo.list(query);
@@ -95,4 +101,43 @@ export async function distinctDestinations() {
     'SELECT destination_country, COUNT(*) AS count FROM athletes WHERE deleted_at IS NULL GROUP BY destination_country ORDER BY count DESC'
   );
   return rows;
+}
+
+export async function uploadPhoto(athleteId, file, actorId, io) {
+  const athlete = await repo.findById(athleteId);
+  if (!athlete) throw AppError.notFound('Athlete not found');
+
+  await fs.mkdir(UPLOADS_DIR, { recursive: true });
+
+  // Fixed filename per athlete (not per upload) so replacing a photo
+  // overwrites in place - no orphaned old files accumulating on disk.
+  const ext = file.mimetype === 'image/png' ? 'png' : 'jpg';
+  const filename = `${athleteId}.${ext}`;
+  const filePath = path.join(UPLOADS_DIR, filename);
+
+  // Clean up a stale file with the other extension (e.g. athlete previously
+  // uploaded a PNG, now uploads a JPEG) so we don't serve two versions.
+  const otherExt = ext === 'jpg' ? 'png' : 'jpg';
+  await fs.rm(path.join(UPLOADS_DIR, `${athleteId}.${otherExt}`), { force: true });
+
+  await fs.writeFile(filePath, file.buffer);
+
+  const relativePath = `athlete-photos/${filename}`;
+  await repo.updatePhotoPath(athleteId, relativePath);
+
+  await activityLogService.record(null, {
+    userId: actorId, action: 'athlete.photo_updated', entityType: 'athlete', entityId: athleteId, details: {},
+  });
+
+  io?.emit('athlete:updated', { id: athleteId });
+
+  return { photoPath: relativePath };
+}
+
+export async function getPhotoFile(athleteId) {
+  const athlete = await repo.findById(athleteId);
+  if (!athlete || !athlete.photo_path) throw AppError.notFound('No photo on file for this athlete');
+  const absolutePath = path.join(UPLOADS_DIR, path.basename(athlete.photo_path));
+  const mimeType = athlete.photo_path.endsWith('.png') ? 'image/png' : 'image/jpeg';
+  return { absolutePath, mimeType };
 }

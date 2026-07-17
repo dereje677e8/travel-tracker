@@ -9,4 +9,12 @@ export const athleteApi = {
   updateRequirement: (id, key, payload) =>
     api.patch(`/athletes/${id}/requirements/${key}`, payload).then((r) => r.data.data),
   destinations: () => api.get('/athletes/destinations').then((r) => r.data.data),
+  uploadPhoto: (id, blob) => {
+    const formData = new FormData();
+    formData.append('photo', blob, `${id}.jpg`);
+    return api.post(`/athletes/${id}/photo`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then((r) => r.data.data);
+  },
+  photoPath: (id) => `/athletes/${id}/photo`, // pass to useAuthedImage, not <img src> directly
 };

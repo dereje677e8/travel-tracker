@@ -2,3 +2,8 @@ node_modules/
 .env
 *.log
 dist/
+uploads/*
+!uploads/.gitkeep
+!uploads/athlete-photos/
+uploads/athlete-photos/*
+!uploads/athlete-photos/.gitkeep
