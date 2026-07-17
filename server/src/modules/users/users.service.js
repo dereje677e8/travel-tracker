@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { pool } from '../../db/pool.js';
 import { AppError } from '../../utils/AppError.js';
 import * as activityLogService from '../activityLog/activityLog.service.js';
@@ -47,4 +48,31 @@ export async function update(id, patch, actorId) {
   await activityLogService.record(null, {
     userId: actorId, action: 'user.updated', entityType: 'user', entityId: id, details: patch,
   });
+}
+
+// Generates an 12-char password from an unambiguous charset (no 0/O/1/l/I)
+// so it's easy to read aloud or retype if the admin has to relay it by phone.
+const TEMP_PASSWORD_CHARSET = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+function generateTempPassword(length = 12) {
+  return Array.from(crypto.randomFillSync(new Uint8Array(length)))
+    .map((byte) => TEMP_PASSWORD_CHARSET[byte % TEMP_PASSWORD_CHARSET.length])
+    .join('');
+}
+
+export async function resetPassword(id, explicitPassword, actorId) {
+  const [existing] = await pool.query('SELECT id, email FROM users WHERE id = ?', [id]);
+  if (!existing.length) throw AppError.notFound('User not found');
+
+  const newPassword = explicitPassword || generateTempPassword();
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, id]);
+
+  // Never log or store the plaintext password anywhere - it's returned once
+  // in the API response for the admin to relay, and that's it.
+  await activityLogService.record(null, {
+    userId: actorId, action: 'user.password_reset', entityType: 'user', entityId: id,
+    details: { generatedByAdmin: !explicitPassword },
+  });
+
+  return { id, email: existing[0].email, temporaryPassword: newPassword };
 }

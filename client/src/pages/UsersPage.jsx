@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, KeyRound, Copy, Check } from 'lucide-react';
 import { usersApi } from '../api/usersApi.js';
 import Modal from '../components/ui/Modal.jsx';
 
@@ -10,6 +10,12 @@ export default function UsersPage() {
   const [form, setForm] = useState({ fullName: '', email: '', password: '', role: 'staff' });
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Password reset flow: confirm -> result (shown once, with copy button).
+  const [resetTarget, setResetTarget] = useState(null);
+  const [resetResult, setResetResult] = useState(null);
+  const [resetting, setResetting] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -41,6 +47,23 @@ export default function UsersPage() {
   async function toggleActive(user) {
     await usersApi.update(user.id, { isActive: !user.is_active });
     load();
+  }
+
+  async function confirmReset() {
+    setResetting(true);
+    try {
+      const result = await usersApi.resetPassword(resetTarget.id);
+      setResetTarget(null);
+      setResetResult(result);
+      setCopied(false);
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  function copyPassword() {
+    navigator.clipboard.writeText(resetResult.temporaryPassword);
+    setCopied(true);
   }
 
   return (
@@ -76,9 +99,14 @@ export default function UsersPage() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <button onClick={() => toggleActive(u)} className="text-xs font-medium text-primary-600 hover:underline">
-                    {u.is_active ? 'Disable' : 'Enable'}
-                  </button>
+                  <div className="flex items-center justify-end gap-3">
+                    <button onClick={() => setResetTarget(u)} className="flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-primary-600" title="Reset password">
+                      <KeyRound size={13} /> Reset
+                    </button>
+                    <button onClick={() => toggleActive(u)} className="text-xs font-medium text-primary-600 hover:underline">
+                      {u.is_active ? 'Disable' : 'Enable'}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -115,6 +143,37 @@ export default function UsersPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Step 1: confirm */}
+      <Modal open={!!resetTarget} onClose={() => setResetTarget(null)} title="Reset Password">
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          Generate a new temporary password for <span className="font-medium text-ink dark:text-ink-dark">{resetTarget?.full_name}</span>?
+          Their current password will stop working immediately.
+        </p>
+        <div className="mt-5 flex justify-end gap-3">
+          <button onClick={() => setResetTarget(null)} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800">Cancel</button>
+          <button onClick={confirmReset} disabled={resetting} className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50">
+            {resetting ? 'Resetting\u2026' : 'Reset Password'}
+          </button>
+        </div>
+      </Modal>
+
+      {/* Step 2: show the new password once - it's never retrievable again after this closes */}
+      <Modal open={!!resetResult} onClose={() => setResetResult(null)} title="New Temporary Password">
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          Share this with <span className="font-medium text-ink dark:text-ink-dark">{resetResult?.email}</span> through
+          a secure channel. It won&apos;t be shown again after you close this.
+        </p>
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5">
+          <code className="flex-1 font-mono text-sm text-ink dark:text-ink-dark">{resetResult?.temporaryPassword}</code>
+          <button onClick={copyPassword} className="flex items-center gap-1.5 rounded-md bg-primary-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-primary-700">
+            {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+        <div className="mt-5 flex justify-end">
+          <button onClick={() => setResetResult(null)} className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700">Done</button>
+        </div>
       </Modal>
     </div>
   );

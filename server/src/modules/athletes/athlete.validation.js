@@ -9,6 +9,7 @@ const athleteBaseSchema = z.object({
   gender: z.enum(['male', 'female', 'other']),
   dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD'),
   passportNumber: z.string().min(4).max(50),
+  passportExpirationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD').optional().nullable(),
   sport: z.string().min(2).max(100),
   teamFederation: z.string().max(150).optional().nullable(),
   destinationCountry: z.string().min(2).max(100),
@@ -49,6 +50,7 @@ export const listQuerySchema = z.object({
   destinationCountry: z.string().optional(),
   missing: z.string().optional(), // requirement_key of a missing item
   travelWindow: z.enum(['week', 'month']).optional(),
+  passportExpiring: z.coerce.boolean().optional(), // expires within 6 months, or already expired
   sortBy: z.enum(['departure_date', 'created_at', 'full_name', 'progress_percent']).default('departure_date'),
   sortDir: z.enum(['asc', 'desc']).default('asc'),
 });

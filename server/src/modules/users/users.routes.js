@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
-import { createUserSchema, updateUserSchema } from './users.validation.js';
-import { listHandler, createHandler, updateHandler, directoryHandler } from './users.controller.js';
+import { createUserSchema, updateUserSchema, resetPasswordSchema } from './users.validation.js';
+import { listHandler, createHandler, updateHandler, directoryHandler, resetPasswordHandler } from './users.controller.js';
 
 const router = Router();
 
@@ -18,5 +18,6 @@ router.use(requireAuth, requireRole('administrator'));
 router.get('/', listHandler);
 router.post('/', validate(createUserSchema), createHandler);
 router.patch('/:id', validate(updateUserSchema), updateHandler);
+router.post('/:id/reset-password', validate(resetPasswordSchema), resetPasswordHandler);
 
 export default router;

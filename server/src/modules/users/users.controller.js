@@ -33,3 +33,12 @@ export async function updateHandler(req, res, next) {
     next(err);
   }
 }
+
+export async function resetPasswordHandler(req, res, next) {
+  try {
+    const result = await usersService.resetPassword(Number(req.params.id), req.body.newPassword, req.user.id);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}

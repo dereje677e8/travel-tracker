@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, CheckCircle2, Clock, AlertTriangle, PlaneTakeoff, Stamp } from 'lucide-react';
+import { Users, CheckCircle2, Clock, AlertTriangle, PlaneTakeoff, Stamp, ShieldAlert } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { dashboardApi } from '../api/dashboardApi.js';
 import StatCard from '../components/ui/StatCard.jsx';
@@ -39,18 +39,19 @@ export default function DashboardPage() {
   if (loading) return <div className="text-slate-400">Loading dashboard\u2026</div>;
   if (!summary) return null;
 
-  const { totals, byDestination, upcomingDepartures, upcomingVisaAppointments, recentUpdates, progressBuckets } = summary;
+  const { totals, byDestination, upcomingDepartures, upcomingVisaAppointments, passportsExpiringSoon, recentUpdates, progressBuckets } = summary;
 
   const pieData = progressBuckets.map((b) => ({ name: b.status, value: b.count, color: STATUS_COLORS[b.status] }));
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
         <StatCard label="Total Athletes" value={totals.totalAthletes} icon={Users} />
         <StatCard label="Ready for Travel" value={totals.readyForTravel} icon={CheckCircle2} accentColor="text-status-ready" />
         <StatCard label="In Progress" value={totals.inProgress} icon={Clock} accentColor="text-primary-600" />
         <StatCard label="Action Required" value={totals.actionRequired} icon={AlertTriangle} accentColor="text-status-action" />
         <StatCard label="Traveling This Week" value={totals.travelingThisWeek} icon={PlaneTakeoff} accentColor="text-accent-dark" />
+        <StatCard label="Passports Expiring" value={totals.passportsExpiringSoon} icon={ShieldAlert} accentColor="text-status-action" />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -82,7 +83,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
         {/* Upcoming departures - flight-board styled */}
         <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-surface dark:bg-surface-dark p-5 lg:col-span-2">
           <div className="mb-3 flex items-center justify-between">
@@ -125,6 +126,24 @@ export default function DashboardPage() {
               <Link key={v.id} to={`/athletes/${v.id}`} className="block rounded-xl border border-slate-100 dark:border-slate-800 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50">
                 <p className="text-sm font-medium text-ink dark:text-ink-dark">{v.full_name}</p>
                 <p className="text-xs text-slate-500">{formatDate(v.appointment_date)} \u2022 {v.embassy || 'Embassy TBD'}</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* Passports expiring soon */}
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-surface dark:bg-surface-dark p-5">
+          <div className="mb-3 flex items-center gap-2">
+            <ShieldAlert size={16} className="text-status-action" />
+            <h2 className="text-sm font-semibold text-ink dark:text-ink-dark">Passports Expiring Soon</h2>
+          </div>
+          <p className="mb-2 text-xs text-slate-400">Within 6 months, or already expired.</p>
+          <div className="space-y-2">
+            {passportsExpiringSoon.length === 0 && <p className="text-sm text-slate-400">None flagged.</p>}
+            {passportsExpiringSoon.map((p) => (
+              <Link key={p.id} to={`/athletes/${p.id}`} className="block rounded-xl border border-slate-100 dark:border-slate-800 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                <p className="text-sm font-medium text-ink dark:text-ink-dark">{p.full_name}</p>
+                <p className="text-xs font-medium text-status-action">Expires {formatDate(p.passport_expiration_date)}</p>
               </Link>
             ))}
           </div>

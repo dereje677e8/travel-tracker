@@ -12,3 +12,8 @@ export const updateUserSchema = z.object({
   role: z.enum(['administrator', 'staff']).optional(),
   isActive: z.boolean().optional(),
 });
+
+export const resetPasswordSchema = z.object({
+  // Optional - if omitted, the server generates a secure temporary password.
+  newPassword: z.string().min(8).optional(),
+});

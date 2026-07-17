@@ -7,7 +7,8 @@ export async function getSummary() {
       SUM(status = 'ready_for_travel') AS ready_for_travel,
       SUM(status IN ('preparing_documents', 'in_progress', 'almost_ready')) AS in_progress,
       SUM(status = 'new') AS action_required,
-      SUM(departure_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)) AS traveling_this_week
+      SUM(departure_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)) AS traveling_this_week,
+      SUM(passport_expiration_date IS NOT NULL AND passport_expiration_date <= DATE_ADD(CURDATE(), INTERVAL 6 MONTH)) AS passports_expiring_soon
     FROM athletes WHERE deleted_at IS NULL
   `);
 
@@ -33,6 +34,17 @@ export async function getSummary() {
     ORDER BY tr.appointment_date ASC LIMIT 8
   `);
 
+  // Same 6-month validity window used by the list filter and the reminder
+  // job - already-expired passports are included (they sort first) since
+  // those are the most urgent, not just the "expiring soon" ones.
+  const [passportsExpiringSoon] = await pool.query(`
+    SELECT id, athlete_code, full_name, passport_expiration_date
+    FROM athletes
+    WHERE deleted_at IS NULL AND passport_expiration_date IS NOT NULL
+      AND passport_expiration_date <= DATE_ADD(CURDATE(), INTERVAL 6 MONTH)
+    ORDER BY passport_expiration_date ASC LIMIT 8
+  `);
+
   const [recentUpdates] = await pool.query(`
     SELECT al.id, al.action, al.entity_type, al.entity_id, al.created_at, u.full_name AS user_name,
            a.full_name AS athlete_name
@@ -53,10 +65,12 @@ export async function getSummary() {
       inProgress: counts.in_progress || 0,
       actionRequired: counts.action_required || 0,
       travelingThisWeek: counts.traveling_this_week || 0,
+      passportsExpiringSoon: counts.passports_expiring_soon || 0,
     },
     byDestination,
     upcomingDepartures,
     upcomingVisaAppointments,
+    passportsExpiringSoon,
     recentUpdates,
     progressBuckets,
   };

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
+import { Copy } from 'lucide-react';
 import Modal from '../../components/ui/Modal.jsx';
 import { athleteApi } from '../../api/athleteApi.js';
 import { usersApi } from '../../api/usersApi.js';
 
 const EMPTY = {
-  fullName: '', gender: 'female', dateOfBirth: '', passportNumber: '', sport: '',
-  teamFederation: '', destinationCountry: '', destinationCity: '', competitionName: '',
+  fullName: '', gender: 'female', dateOfBirth: '', passportNumber: '', passportExpirationDate: '',
+  sport: '', teamFederation: '', destinationCountry: '', destinationCity: '', competitionName: '',
   purposeOfTravel: 'Competition', visaType: '', embassy: '', departureDate: '', returnDate: '',
   assignedOfficerId: '', priority: 'medium', notes: '',
 };
@@ -15,6 +16,7 @@ const FIELDS = [
   ['gender', 'Gender', 'select-gender', true],
   ['dateOfBirth', 'Date of Birth', 'date', true],
   ['passportNumber', 'Passport Number', 'text', true],
+  ['passportExpirationDate', 'Passport Expiration Date', 'date', false],
   ['sport', 'Sport', 'text', true],
   ['teamFederation', 'Team / Federation', 'text', false],
   ['destinationCountry', 'Destination Country', 'text', true],
@@ -29,7 +31,28 @@ const FIELDS = [
   ['priority', 'Priority', 'select-priority', true],
 ];
 
-export default function AthleteFormModal({ open, onClose, onSaved, athlete }) {
+// Shared by edit-prefill and duplicate-prefill - same source athlete shape,
+// different destination (update vs create).
+function fieldsFromAthlete(source) {
+  return {
+    fullName: source.full_name, gender: source.gender, dateOfBirth: source.date_of_birth,
+    passportNumber: source.passport_number, passportExpirationDate: source.passport_expiration_date || '',
+    sport: source.sport, teamFederation: source.team_federation || '',
+    destinationCountry: source.destination_country, destinationCity: source.destination_city || '',
+    competitionName: source.competition_name, purposeOfTravel: source.purpose_of_travel || '',
+    visaType: source.visa_type || '', embassy: source.embassy || '',
+    departureDate: source.departure_date, returnDate: source.return_date,
+    assignedOfficerId: source.assigned_officer_id || '',
+    priority: source.priority, notes: source.notes || '',
+  };
+}
+
+/**
+ * athlete: full athlete record -> edit mode (PATCH on submit).
+ * duplicateFrom: full athlete record -> create mode, pre-filled from it.
+ * Neither -> blank create mode.
+ */
+export default function AthleteFormModal({ open, onClose, onSaved, athlete, duplicateFrom }) {
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -45,22 +68,19 @@ export default function AthleteFormModal({ open, onClose, onSaved, athlete }) {
 
   useEffect(() => {
     if (athlete) {
-      setForm({
-        fullName: athlete.full_name, gender: athlete.gender, dateOfBirth: athlete.date_of_birth,
-        passportNumber: athlete.passport_number, sport: athlete.sport, teamFederation: athlete.team_federation || '',
-        destinationCountry: athlete.destination_country, destinationCity: athlete.destination_city || '',
-        competitionName: athlete.competition_name, purposeOfTravel: athlete.purpose_of_travel || '',
-        visaType: athlete.visa_type || '', embassy: athlete.embassy || '',
-        departureDate: athlete.departure_date, returnDate: athlete.return_date,
-        assignedOfficerId: athlete.assigned_officer_id || '',
-        priority: athlete.priority, notes: athlete.notes || '',
-      });
+      setForm(fieldsFromAthlete(athlete));
+    } else if (duplicateFrom) {
+      // Everything carries over except identity - the whole point is "same
+      // trip/team, slightly different person or dates," and the person
+      // editing can change whatever doesn't apply (most often the name,
+      // passport, and dates for a different athlete on the same trip).
+      setForm(fieldsFromAthlete(duplicateFrom));
     } else {
       setForm(EMPTY);
     }
     setErrors({});
     setServerError(null);
-  }, [athlete, open]);
+  }, [athlete, duplicateFrom, open]);
 
   function update(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -74,16 +94,20 @@ export default function AthleteFormModal({ open, onClose, onSaved, athlete }) {
     try {
       // assignedOfficerId comes off a <select> as a string ('' when unset) -
       // the API expects a positive integer or null, not an empty string.
+      // Same for passportExpirationDate - '' should mean "not set", not a
+      // literal empty-string date.
       const payload = {
         ...form,
         assignedOfficerId: form.assignedOfficerId ? Number(form.assignedOfficerId) : null,
+        passportExpirationDate: form.passportExpirationDate || null,
       };
       if (athlete) {
         await athleteApi.update(athlete.id, payload);
+        onSaved();
       } else {
-        await athleteApi.create(payload);
+        const result = await athleteApi.create(payload);
+        onSaved(result);
       }
-      onSaved();
       onClose();
     } catch (err) {
       if (err.fields) setErrors(err.fields);
@@ -93,10 +117,19 @@ export default function AthleteFormModal({ open, onClose, onSaved, athlete }) {
     }
   }
 
+  const title = athlete ? 'Edit Athlete' : duplicateFrom ? 'Duplicate Athlete' : 'Add Athlete';
+
   return (
-    <Modal open={open} onClose={onClose} title={athlete ? 'Edit Athlete' : 'Add Athlete'} wide>
+    <Modal open={open} onClose={onClose} title={title} wide>
       <form onSubmit={handleSubmit} className="space-y-4">
         {serverError && <div className="rounded-lg bg-status-action/10 px-3 py-2 text-sm text-status-action">{serverError}</div>}
+
+        {duplicateFrom && (
+          <div className="flex items-center gap-2 rounded-lg bg-primary-50 dark:bg-primary-900/30 px-3 py-2 text-sm text-primary-700 dark:text-primary-300">
+            <Copy size={15} />
+            Pre-filled from {duplicateFrom.full_name} \u2014 review and edit before saving as a new athlete.
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {FIELDS.map(([key, label, type, required]) => (
@@ -152,7 +185,7 @@ export default function AthleteFormModal({ open, onClose, onSaved, athlete }) {
             Cancel
           </button>
           <button type="submit" disabled={submitting} className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50">
-            {submitting ? 'Saving\u2026' : athlete ? 'Save Changes' : 'Add Athlete'}
+            {submitting ? 'Saving\u2026' : athlete ? 'Save Changes' : duplicateFrom ? 'Save as New Athlete' : 'Add Athlete'}
           </button>
         </div>
       </form>

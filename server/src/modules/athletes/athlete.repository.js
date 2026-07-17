@@ -21,12 +21,13 @@ export async function generateAthleteCode(conn) {
 export async function insertAthlete(conn, code, data, createdBy) {
   const [result] = await conn.query(
     `INSERT INTO athletes
-      (athlete_code, full_name, gender, date_of_birth, passport_number, sport, team_federation,
+      (athlete_code, full_name, gender, date_of_birth, passport_number, passport_expiration_date, sport, team_federation,
        destination_country, destination_city, competition_name, purpose_of_travel, visa_type,
        embassy, departure_date, return_date, assigned_officer_id, priority, notes, created_by)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
-      code, data.fullName, data.gender, data.dateOfBirth, data.passportNumber, data.sport,
+      code, data.fullName, data.gender, data.dateOfBirth, data.passportNumber,
+      data.passportExpirationDate || null, data.sport,
       data.teamFederation || null, data.destinationCountry, data.destinationCity || null,
       data.competitionName, data.purposeOfTravel || null, data.visaType || null, data.embassy || null,
       data.departureDate, data.returnDate, data.assignedOfficerId || null, data.priority,
@@ -47,7 +48,8 @@ export async function insertBlankRequirements(conn, athleteId) {
 export async function updateAthleteFields(conn, id, patch) {
   const columnMap = {
     fullName: 'full_name', gender: 'gender', dateOfBirth: 'date_of_birth',
-    passportNumber: 'passport_number', sport: 'sport', teamFederation: 'team_federation',
+    passportNumber: 'passport_number', passportExpirationDate: 'passport_expiration_date',
+    sport: 'sport', teamFederation: 'team_federation',
     destinationCountry: 'destination_country', destinationCity: 'destination_city',
     competitionName: 'competition_name', purposeOfTravel: 'purpose_of_travel', visaType: 'visa_type',
     embassy: 'embassy', departureDate: 'departure_date', returnDate: 'return_date',
@@ -129,7 +131,7 @@ export async function updateRequirementRow(conn, athleteId, requirementKey, { st
   );
 }
 
-export async function list({ page, limit, search, status, destinationCountry, missing, travelWindow, sortBy, sortDir }) {
+export async function list({ page, limit, search, status, destinationCountry, missing, travelWindow, passportExpiring, sortBy, sortDir }) {
   const { pool } = await import('../../db/pool.js');
   const where = ['a.deleted_at IS NULL'];
   const params = [];
@@ -153,6 +155,11 @@ export async function list({ page, limit, search, status, destinationCountry, mi
   } else if (travelWindow === 'month') {
     where.push('a.departure_date BETWEEN CURDATE() AND LAST_DAY(CURDATE())');
   }
+  if (passportExpiring) {
+    // Flags anything already expired or expiring within 6 months - the
+    // validity window many countries require at entry.
+    where.push('a.passport_expiration_date IS NOT NULL AND a.passport_expiration_date <= DATE_ADD(CURDATE(), INTERVAL 6 MONTH)');
+  }
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const sortColumn = { departure_date: 'a.departure_date', created_at: 'a.created_at', full_name: 'a.full_name', progress_percent: 'a.progress_percent' }[sortBy];
@@ -161,7 +168,7 @@ export async function list({ page, limit, search, status, destinationCountry, mi
   const [rows] = await pool.query(
     `SELECT a.id, a.athlete_code, a.full_name, a.sport, a.destination_country, a.destination_city,
             a.competition_name, a.departure_date, a.return_date, a.priority, a.progress_percent,
-            a.status, u.full_name AS assigned_officer_name
+            a.status, a.passport_expiration_date, u.full_name AS assigned_officer_name
      FROM athletes a
      LEFT JOIN users u ON u.id = a.assigned_officer_id
      ${whereSql}

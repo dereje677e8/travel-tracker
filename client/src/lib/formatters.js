@@ -10,3 +10,10 @@ export function daysUntil(dateStr) {
   const today = new Date(new Date().toDateString());
   return Math.ceil((target - today) / 86400000);
 }
+
+export function isPassportExpiringSoon(expirationDate) {
+  if (!expirationDate) return false;
+  const sixMonthsFromNow = new Date();
+  sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
+  return new Date(expirationDate + 'T00:00:00') <= sixMonthsFromNow;
+}

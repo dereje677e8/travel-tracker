@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Pencil, Trash2, Send, Plane, Building2, CreditCard } from 'lucide-react';
+import { ArrowLeft, Pencil, Trash2, Send, Plane, Building2, CreditCard, Copy } from 'lucide-react';
 import { athleteApi } from '../api/athleteApi.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocketEvent } from '../hooks/useSocketEvent.js';
@@ -11,7 +11,7 @@ import CountdownChip from '../components/ui/CountdownChip.jsx';
 import RequirementChecklist from '../features/athletes/RequirementChecklist.jsx';
 import AthleteFormModal from '../features/athletes/AthleteFormModal.jsx';
 import NotifyModal from '../features/athletes/NotifyModal.jsx';
-import { formatDate } from '../lib/formatters.js';
+import { formatDate, isPassportExpiringSoon } from '../lib/formatters.js';
 
 export default function AthleteDetailPage() {
   const { id } = useParams();
@@ -21,6 +21,7 @@ export default function AthleteDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [notifyOpen, setNotifyOpen] = useState(false);
 
   const load = useCallback(async () => {
@@ -66,6 +67,9 @@ export default function AthleteDetailPage() {
           </button>
           <button onClick={() => setEditOpen(true)} className="flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
             <Pencil size={15} /> Edit
+          </button>
+          <button onClick={() => setDuplicateOpen(true)} className="flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+            <Copy size={15} /> Duplicate
           </button>
           {user?.role === 'administrator' && (
             <button onClick={handleDelete} className="flex items-center gap-2 rounded-lg border border-status-action/30 px-3 py-2 text-sm font-medium text-status-action hover:bg-status-action/5">
@@ -120,10 +124,16 @@ export default function AthleteDetailPage() {
             <div>
               <p className="text-xs text-slate-400">Passport</p>
               <p className="text-sm font-medium text-ink dark:text-ink-dark">{athlete.passport_number}</p>
-              <p className="text-xs text-slate-500">Assigned: {athlete.assigned_officer_name || 'Unassigned'}</p>
+              <p className={`text-xs ${isPassportExpiringSoon(athlete.passport_expiration_date) ? 'font-semibold text-status-action' : 'text-slate-500'}`}>
+                {athlete.passport_expiration_date
+                  ? `Expires ${formatDate(athlete.passport_expiration_date)}${isPassportExpiringSoon(athlete.passport_expiration_date) ? ' \u2014 renew soon' : ''}`
+                  : 'Expiration date not on file'}
+              </p>
             </div>
           </div>
         </div>
+
+        <p className="mt-2 text-xs text-slate-400">Assigned Officer: {athlete.assigned_officer_name || 'Unassigned'}</p>
 
         {athlete.notes && (
           <div className="mt-5 rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 text-sm text-slate-600 dark:text-slate-300">
@@ -159,6 +169,13 @@ export default function AthleteDetailPage() {
       </div>
 
       <AthleteFormModal open={editOpen} onClose={() => setEditOpen(false)} onSaved={load} athlete={athlete} />
+      <AthleteFormModal
+        open={duplicateOpen}
+        onClose={() => setDuplicateOpen(false)}
+        onSaved={(result) => navigate(result?.id ? `/athletes/${result.id}` : '/athletes')}
+        athlete={null}
+        duplicateFrom={duplicateOpen ? athlete : null}
+      />
       <NotifyModal open={notifyOpen} onClose={() => setNotifyOpen(false)} athleteId={athlete.id} />
     </div>
   );
