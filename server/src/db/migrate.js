@@ -1,7 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { pool } from './pool.js';
+import mysql from 'mysql2/promise';
+import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -18,7 +19,15 @@ async function ensureMigrationsTable(conn) {
 }
 
 async function run() {
-  const conn = await pool.getConnection();
+  // A dedicated connection with multipleStatements enabled - unlike the
+  // shared app pool (pool.js), which deliberately leaves this off since
+  // application queries build SQL from user input. Migration files are
+  // trusted, developer-authored SQL, so a file with several semicolon-
+  // separated ALTER/CREATE statements can run as written.
+  const conn = await mysql.createConnection({
+    host: env.db.host, port: env.db.port, user: env.db.user, password: env.db.password,
+    database: env.db.database, multipleStatements: true, dateStrings: true,
+  });
   try {
     await ensureMigrationsTable(conn);
     const [applied] = await conn.query('SELECT filename FROM schema_migrations');
@@ -39,8 +48,7 @@ async function run() {
 
     logger.info('Migrations complete');
   } finally {
-    conn.release();
-    await pool.end();
+    await conn.end();
   }
 }
 

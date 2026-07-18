@@ -11,9 +11,8 @@ export default function RequirementChecklist({ athleteId, requirements, onChange
   async function toggle(key, current) {
     setSavingKey(key);
     try {
-      // Preserve the current appointment date on a simple status toggle -
-      // updateRequirementRow only overwrites appointment_date when the
-      // caller explicitly sends it.
+      // Preserve the current appointment date/time on a simple status toggle -
+      // updateRequirementRow only overwrites them when explicitly sent.
       await athleteApi.updateRequirement(athleteId, key, {
         status: current === 'completed' ? 'pending' : 'completed',
       });
@@ -23,13 +22,12 @@ export default function RequirementChecklist({ athleteId, requirements, onChange
     }
   }
 
-  async function setAppointmentDate(key, currentStatus, appointmentDate) {
+  // patch is a partial { appointmentDate, appointmentTime } - only the
+  // field that actually changed is included, so the other stays as-is.
+  async function setAppointment(key, currentStatus, patch) {
     setSavingKey(key);
     try {
-      await athleteApi.updateRequirement(athleteId, key, {
-        status: currentStatus,
-        appointmentDate: appointmentDate || null,
-      });
+      await athleteApi.updateRequirement(athleteId, key, { status: currentStatus, ...patch });
       onChanged();
     } finally {
       setSavingKey(null);
@@ -61,19 +59,27 @@ export default function RequirementChecklist({ athleteId, requirements, onChange
                   <p className="text-xs text-slate-400">Completed {formatDate(req.date_completed)}</p>
                 )}
                 {!completed && isAppointment && (
-                  <div className="mt-1 flex items-center gap-1.5">
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     <CalendarClock size={13} className="shrink-0 text-slate-400" />
                     <input
                       type="date"
                       value={req.appointment_date || ''}
                       disabled={savingKey === key}
-                      onChange={(e) => setAppointmentDate(key, req.status, e.target.value)}
+                      onChange={(e) => setAppointment(key, req.status, { appointmentDate: e.target.value || null })}
                       className="rounded border border-slate-300 dark:border-slate-600 bg-transparent px-1.5 py-0.5 text-xs text-slate-600 dark:text-slate-300 disabled:opacity-50"
                       aria-label="Visa appointment date"
                     />
+                    <input
+                      type="time"
+                      value={req.appointment_time ? req.appointment_time.slice(0, 5) : ''}
+                      disabled={savingKey === key}
+                      onChange={(e) => setAppointment(key, req.status, { appointmentTime: e.target.value || null })}
+                      className="rounded border border-slate-300 dark:border-slate-600 bg-transparent px-1.5 py-0.5 text-xs text-slate-600 dark:text-slate-300 disabled:opacity-50"
+                      aria-label="Visa appointment time"
+                    />
                     {req.appointment_date && (
-                      <span className="text-xs text-slate-400">
-                        \u2014 a reminder emails the assigned officer the day before
+                      <span className="text-xs text-slate-400 w-full sm:w-auto">
+                        A reminder emails the assigned officer the day before.
                       </span>
                     )}
                   </div>

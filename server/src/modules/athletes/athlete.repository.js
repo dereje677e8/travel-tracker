@@ -103,7 +103,7 @@ export async function findById(id) {
 export async function findRequirements(athleteId) {
   const { pool } = await import('../../db/pool.js');
   const [rows] = await pool.query(
-    'SELECT id, requirement_key, status, date_completed, appointment_date, notes FROM travel_requirements WHERE athlete_id = ?',
+    'SELECT id, requirement_key, status, date_completed, appointment_date, appointment_time, notes FROM travel_requirements WHERE athlete_id = ?',
     [athleteId]
   );
   return rows;
@@ -118,12 +118,12 @@ export async function getRequirement(athleteId, requirementKey) {
   return rows[0] || null;
 }
 
-export async function updateRequirementRow(conn, athleteId, requirementKey, { status, dateCompleted, appointmentDate, notes }, updatedBy) {
+export async function updateRequirementRow(conn, athleteId, requirementKey, { status, dateCompleted, appointmentDate, appointmentTime, notes }, updatedBy) {
   // status/date_completed are always driven by the toggle (completing clears
-  // to today or the given date; un-completing clears it). appointment_date
-  // and notes are independent fields - only touch them when the caller
-  // actually sent a value, so toggling status doesn't silently wipe a
-  // previously-set appointment date or notes.
+  // to today or the given date; un-completing clears it). appointment_date,
+  // appointment_time, and notes are independent fields - only touch them
+  // when the caller actually sent a value, so toggling status doesn't
+  // silently wipe a previously-set appointment date/time or notes.
   const fields = ['status = ?', 'date_completed = ?', 'updated_by = ?'];
   const values = [
     status,
@@ -133,6 +133,10 @@ export async function updateRequirementRow(conn, athleteId, requirementKey, { st
   if (appointmentDate !== undefined) {
     fields.push('appointment_date = ?');
     values.push(appointmentDate || null);
+  }
+  if (appointmentTime !== undefined) {
+    fields.push('appointment_time = ?');
+    values.push(appointmentTime || null);
   }
   if (notes !== undefined) {
     fields.push('notes = ?');

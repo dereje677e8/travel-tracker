@@ -47,6 +47,7 @@ export const requirementUpdateSchema = z.object({
   status: z.enum(['pending', 'completed']),
   dateCompleted: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   appointmentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD').optional().nullable(),
+  appointmentTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected HH:MM (24-hour)').optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
 });
 

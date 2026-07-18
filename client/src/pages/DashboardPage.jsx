@@ -6,7 +6,7 @@ import { dashboardApi } from '../api/dashboardApi.js';
 import StatCard from '../components/ui/StatCard.jsx';
 import StatusBadge from '../components/ui/StatusBadge.jsx';
 import CountdownChip from '../components/ui/CountdownChip.jsx';
-import { formatDate, daysUntil } from '../lib/formatters.js';
+import { formatDate, daysUntil, formatAppointmentTime } from '../lib/formatters.js';
 import { useSocketEvent } from '../hooks/useSocketEvent.js';
 
 const STATUS_COLORS = {
@@ -125,7 +125,7 @@ export default function DashboardPage() {
             {upcomingVisaAppointments.map((v) => (
               <Link key={v.id} to={`/athletes/${v.id}`} className="block rounded-xl border border-slate-100 dark:border-slate-800 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50">
                 <p className="text-sm font-medium text-ink dark:text-ink-dark">{v.full_name}</p>
-                <p className="text-xs text-slate-500">{formatDate(v.appointment_date)} \u2022 {v.embassy || 'Embassy TBD'}</p>
+                <p className="text-xs text-slate-500">{formatDate(v.appointment_date)}{v.appointment_time ? ` \u2022 ${formatAppointmentTime(v.appointment_time)}` : ''} \u2022 {v.embassy || 'Embassy TBD'}</p>
               </Link>
             ))}
           </div>

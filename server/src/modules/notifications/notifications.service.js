@@ -68,18 +68,14 @@ async function sendWhatsApp(recipient, body) {
   return { simulated: false };
 }
 
-export async function send({ athleteId, channel, recipient, customMessage }, actorId) {
-  const [[athlete]] = await pool.query('SELECT * FROM athletes WHERE id = ? AND deleted_at IS NULL', [athleteId]);
-  if (!athlete) throw AppError.notFound('Athlete not found');
-
-  const [pendingRows] = await pool.query(
-    "SELECT requirement_key FROM travel_requirements WHERE athlete_id = ? AND status = 'pending'",
-    [athleteId]
-  );
-  const missing = pendingRows.map((r) => r.requirement_key.replace(/_/g, ' '));
-  const body = customMessage || buildMessageBody(athlete, missing);
-  const subject = `Travel update: ${athlete.full_name} - ${athlete.competition_name}`;
-
+/**
+ * Shared by send() and sendBatch(): actually dispatches, records the
+ * notifications row (athleteId may be null for a batch/multi-athlete
+ * notification - see migration 009), and logs the activity. Throws on
+ * delivery failure after recording it, so callers can decide how to react
+ * without duplicating the record-then-throw logic.
+ */
+async function dispatchAndRecord({ athleteId, channel, recipient, subject, body, actorId }) {
   let status = 'sent';
   let errorMessage = null;
   try {
@@ -93,16 +89,43 @@ export async function send({ athleteId, channel, recipient, customMessage }, act
   const [result] = await pool.query(
     `INSERT INTO notifications (athlete_id, sent_by, channel, recipient, message, status, error_message)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [athleteId, actorId, channel, recipient, body, status, errorMessage]
+    [athleteId ?? null, actorId, channel, recipient, body, status, errorMessage]
   );
 
   await activityLogService.record(null, {
-    userId: actorId, action: 'notification.sent', entityType: 'athlete', entityId: athleteId,
+    userId: actorId, action: 'notification.sent',
+    entityType: athleteId ? 'athlete' : 'notification_batch',
+    entityId: athleteId ?? result.insertId,
     details: { channel, recipient, status },
   });
 
   if (status === 'failed') throw new AppError(`Failed to send ${channel} notification: ${errorMessage}`, 502, 'NOTIFICATION_FAILED');
   return { id: result.insertId, status };
+}
+
+export async function send({ athleteId, channel, recipient, customMessage }, actorId) {
+  const [[athlete]] = await pool.query('SELECT * FROM athletes WHERE id = ? AND deleted_at IS NULL', [athleteId]);
+  if (!athlete) throw AppError.notFound('Athlete not found');
+
+  const [pendingRows] = await pool.query(
+    "SELECT requirement_key FROM travel_requirements WHERE athlete_id = ? AND status = 'pending'",
+    [athleteId]
+  );
+  const missing = pendingRows.map((r) => r.requirement_key.replace(/_/g, ' '));
+  const body = customMessage || buildMessageBody(athlete, missing);
+  const subject = `Travel update: ${athlete.full_name} - ${athlete.competition_name}`;
+
+  return dispatchAndRecord({ athleteId, channel, recipient, subject, body, actorId });
+}
+
+/**
+ * For notifications that aren't about a single athlete - e.g. one email to
+ * an officer listing everyone's visa appointment tomorrow. athlete_id is
+ * stored as NULL (see migration 009) rather than arbitrarily attributed to
+ * one athlete in the batch.
+ */
+export async function sendBatch({ channel = 'email', recipient, subject, message }, actorId) {
+  return dispatchAndRecord({ athleteId: null, channel, recipient, subject, body: message, actorId });
 }
 
 export async function history(athleteId) {

@@ -26,7 +26,7 @@ export async function getSummary() {
   `);
 
   const [upcomingVisaAppointments] = await pool.query(`
-    SELECT a.id, a.athlete_code, a.full_name, tr.status, tr.appointment_date, a.embassy
+    SELECT a.id, a.athlete_code, a.full_name, tr.status, tr.appointment_date, tr.appointment_time, a.embassy
     FROM athletes a
     JOIN travel_requirements tr ON tr.athlete_id = a.id AND tr.requirement_key = 'visa_appointment'
     WHERE a.deleted_at IS NULL AND tr.status = 'pending' AND tr.appointment_date IS NOT NULL

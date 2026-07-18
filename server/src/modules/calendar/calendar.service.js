@@ -16,7 +16,7 @@ export async function getEvents({ start, end }) {
   );
 
   const [visaAppointments] = await pool.query(
-    `SELECT a.id, a.athlete_code, a.full_name, tr.appointment_date
+    `SELECT a.id, a.athlete_code, a.full_name, tr.appointment_date, tr.appointment_time
      FROM athletes a
      JOIN travel_requirements tr ON tr.athlete_id = a.id AND tr.requirement_key = 'visa_appointment'
      WHERE a.deleted_at IS NULL AND tr.appointment_date BETWEEN ? AND ?`,
@@ -29,7 +29,7 @@ export async function getEvents({ start, end }) {
     events.push({ type: 'return', date: a.return_date, athleteId: a.id, athleteCode: a.athlete_code, title: `${a.full_name} returns` });
   }
   for (const v of visaAppointments) {
-    events.push({ type: 'visa_appointment', date: v.appointment_date, athleteId: v.id, athleteCode: v.athlete_code, title: `${v.full_name} - visa appointment` });
+    events.push({ type: 'visa_appointment', date: v.appointment_date, time: v.appointment_time, athleteId: v.id, athleteCode: v.athlete_code, title: `${v.full_name} - visa appointment${v.appointment_time ? ` @ ${v.appointment_time.slice(0, 5)}` : ''}` });
   }
   return events;
 }

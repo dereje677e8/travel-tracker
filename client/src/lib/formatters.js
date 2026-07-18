@@ -17,3 +17,12 @@ export function isPassportExpiringSoon(expirationDate) {
   sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
   return new Date(expirationDate + 'T00:00:00') <= sixMonthsFromNow;
 }
+
+export function formatAppointmentTime(timeStr) {
+  if (!timeStr) return null;
+  const [h, m] = timeStr.split(':');
+  const hour = Number(h);
+  const period = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${hour12}:${m} ${period}`;
+}
