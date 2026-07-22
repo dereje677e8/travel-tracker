@@ -126,6 +126,6 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 ## Author
 
-**Dereje Sichala**
+**Dereje(DERIK) S.**
 Senior Cloud & DevOps Engineer
-[LinkedIn](#) · [Portfolio](#)
+[LinkedIn](https://www.linkedin.com/in/derejes/) · [Portfolio](https://dereje677e8.github.io/dereje.sichala.github.io/)
